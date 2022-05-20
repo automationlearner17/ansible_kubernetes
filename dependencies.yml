@@ -1,0 +1,36 @@
+---
+
+-  hosts: all
+   become: true
+   tasks:
+
+    - name: update repo
+      dnf: 
+        update_cache : true
+
+    - name: swapoff 
+      command: swapoff -a
+  
+    - name: disbale SElinux
+      command: setenforce 0
+      when: ansible_facts.selinux.status == 'enabled'
+ 
+    - name: set SElinux disbale  on reboot
+      selinux:
+        state: disabled
+    - name: Ensure br_netfilter is enabled.
+      modprobe:
+        name: br_netfilter
+        state: present 
+ 
+    - name: ensure net.bridge.bridge-nf-call-ip6tables is set to 1
+      sysctl: 
+       name: net.bridge.bridge-nf-call-ip6tables
+       value: 1
+       state: present
+
+    - name: ensure net.bridge.bridge-nf-call-iptables is set to 1
+      sysctl:
+       name: net.bridge.bridge-nf-call-iptables
+       value: 1
+       state: present
