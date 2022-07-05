@@ -1,0 +1,90 @@
+---
+
+-  hosts: all
+   become: true
+   tasks:
+
+    - name: update repository
+      dnf:
+        update_cache: true
+
+    - name: disbale swap memory
+      command: swapoff -a
+ 
+    - name: comment swap memory in /etc/fstab
+      lineinfile:
+        path: /etc/fstab
+        regexp: '(^/dev/mapper/centos-swap)'
+        line: '# \1'
+        backrefs: yes
+        state: present 
+        backup: yes
+
+    - name: disbale SElinux
+      command: setenforce 0
+      when: ansible_facts.selinux.status == 'enabled'
+
+    - name: disbale SElinux on reboot permanately
+      command:  sed -i 's/^SELINUX=enforcing$/SELINUX=disabled/' /etc/selinux/config
+
+    - name: set bridge and ipv4 forwarding modprobe br_netfilte  
+      command: modprobe br_netfilter
+
+    - name: set bridge-nf-call-iptables and ipv4_forwarding
+      blockinfile:
+        path: /etc/sysctl.conf
+        block: |
+          net.bridge.bridge-nf-call-iptables=1
+          net.bridge.bridge-nf-call-ip6tables=1
+          net.ipv4.ip_forward=1
+
+    - name: Reboot the System
+      reboot:
+
+    - name: install yum-utils
+      dnf:
+        name: yum-utils
+        state: present
+        
+    - name: adding docker-ce.repo
+      command: yum-config-manager --add-repo  https://download.docker.com/linux/centos/docker-ce.repo
+
+    - name: Install Containerd
+      dnf:
+        name: containerd.io
+        state: present
+ 
+    - name: enable Conatinerd's CRI plugin
+      lineinfile:
+        path: /etc/containerd/config.toml
+        regexp: '(^disabled_plugins=.*)'
+        line: '# \1'
+        backrefs: yes
+        state: present
+        backup: yes
+
+    - name: start conatinerd
+      service:
+        name: containerd
+        enabled: yes
+        state: started
+
+    - name: adding kubernetes repo
+      blockinfile:
+        create: yes
+        path: /etc/yum.repos.d/kubernetes.repo
+        block: |
+          [kubernetes]
+          name=Kubernetes
+          baseurl=https://packages.cloud.google.com/yum/repos/kubernetes-el7-\$basearch
+          enabled=1
+          gpgcheck=1
+          gpgkey=https://packages.cloud.google.com/yum/doc/yum-key.gpg https://packages.cloud.google.com/yum/doc/rpm-package-key.gpg
+          exclude=kubelet kubeadm kubectl
+ 
+    - name: Install kubectl kubelet kubeadm
+      command: yum install -y kubelet kubeadm kubectl --disableexcludes=kubernetes
+
+    - name: enable Kubelet service
+      command: systemctl enable --now kubelet
+      

@@ -1,0 +1,35 @@
+---
+
+-  hosts: master
+   become: yes
+   tasks: 
+     - name: Intialize te cluster
+       shell: kubeadm init --apiserver-advertise-address=<public-ip> >> cluster_intialized.txt
+       args:
+         chdir: /home/yogesh
+         creates: cluster_intialized.txt
+   
+     - name: Create directory .kube
+       become: yes
+       become_user: yogesh
+       file:
+         path: /home/yogesh/.kube
+         state: directory
+         mode: 0755
+  
+     - name: Copy config file from kubernetes to .kube dir
+       copy: 
+         src: /etc/kubernetes/admin.conf
+         dest: /home/yogesh/.kube
+         remote_src: yes
+         owner: yogesh
+  
+     - name: Install pod netowrk
+       become: yes
+       become_user: yogesh
+       environment:
+         kubever=$(kubectl version | base64 | tr -d '\n')
+       shell: kubectl apply -f "https://cloud.weave.works/k8s/net?k8s-version=$kubever"  >> pod_network_setup.txt
+       args:
+         chdir: /home/yogesh
+         creates: pod_network_setup.txt
